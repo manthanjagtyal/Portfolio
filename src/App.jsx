@@ -1,21 +1,10 @@
 import React, { Suspense, useEffect, useRef } from 'react'
 import { Canvas } from '@react-three/fiber'
 import * as THREE from 'three'
-import gsap from 'gsap'
-import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { scrollStore } from './store/scrollStore'
 import Scene from './components/Scene'
 import HtmlOverlay from './components/HtmlOverlay'
 import { ArrowUpRight } from 'lucide-react'
-
-// Register GSAP plugin once at module level
-gsap.registerPlugin(ScrollTrigger)
-
-// FIX 3a — Disable GSAP lag smoothing
-// Without this, GSAP tries to "catch up" missed frames after a tab switch or
-// focus loss, which causes a violent stutter burst when you return to the tab.
-// lagSmoothing(0) = treat every frame as exactly delta ms, no catch-up.
-gsap.ticker.lagSmoothing(0)
 
 // ─── Error Boundary ──────────────────────────────────────────────────────────
 class ErrorBoundary extends React.Component {
@@ -53,28 +42,21 @@ export default function App() {
     const container = scrollContainerRef.current
     if (!container) return
 
-    /**
-     * GSAP ScrollTrigger — the ONLY scroll listener.
-     *
-     * onUpdate fires on every native scroll frame (high-frequency, no React).
-     * It directly mutates scrollStore.current — a plain JS object.
-     * No setState, no dispatch, no re-renders triggered whatsoever.
-     *
-     * The R3F useFrame loop in CameraController reads scrollStore.current
-     * independently at GPU frame rate and lerps the camera there.
-     * The two loops (scroll events & RAF) are completely decoupled.
-     */
-    const trigger = ScrollTrigger.create({
-      scroller: container,
-      trigger:  container,
-      start:    'top top',
-      end:      'bottom bottom',
-      onUpdate: (self) => {
-        scrollStore.current = self.progress  // direct mutation, zero overhead
-      },
-    })
+    const updateProgress = () => {
+      const scrollableDistance = container.scrollHeight - container.clientHeight
+      scrollStore.current = scrollableDistance > 0
+        ? container.scrollTop / scrollableDistance
+        : 0
+    }
 
-    return () => trigger.kill()
+    updateProgress()
+    container.addEventListener('scroll', updateProgress, { passive: true })
+    window.addEventListener('resize', updateProgress)
+
+    return () => {
+      container.removeEventListener('scroll', updateProgress)
+      window.removeEventListener('resize', updateProgress)
+    }
   }, [])
 
   return (
@@ -85,10 +67,11 @@ export default function App() {
         <ErrorBoundary>
           <Canvas
             frameloop="always"
-            dpr={[1, 1.5]}            {/* FIX 5 — cap DPR: 2.0 = 4× pixels on retina, lethal */}
+            dpr={[1, 1.25]}
             camera={{ position: [0, 0.4, 6.2], fov: 45 }}
             gl={{
-              antialias: false,         {/* postprocessing handles AA, disable GL-level AA */}
+              // Postprocessing handles AA, so WebGL-level AA stays disabled.
+              antialias: false,
               toneMapping: THREE.ACESFilmicToneMapping,
               toneMappingExposure: 1.1,
               powerPreference: 'high-performance',
@@ -107,6 +90,7 @@ export default function App() {
       {/*    pointer-events: none on the container itself so mouse hover    */}
       {/*    events reach the canvas; interactive children restore it.      */}
       <div
+        id="scroll-container"
         ref={scrollContainerRef}
         style={{
           position:   'absolute',
@@ -133,12 +117,12 @@ export default function App() {
             ['ScriptSense', 'featured-work'],
             ['Contact',     'contact'],
           ].map(([label, id]) => (
-            <span key={id} onClick={() => {
+            <button type="button" key={id} onClick={() => {
               const el = scrollContainerRef.current?.querySelector(`#${id}`)
               if (el) el.scrollIntoView({ behavior: 'smooth' })
             }}>
               {label}
-            </span>
+            </button>
           ))}
         </nav>
 

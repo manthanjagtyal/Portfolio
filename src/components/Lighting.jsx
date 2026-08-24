@@ -58,7 +58,7 @@ export default function Lighting() {
         position={[6, 8, 4]}
         intensity={2.8}
         color="#FFC56E"
-        castShadow={false}    {/* FIX 2a — no per-frame shadow map render */}
+        castShadow={false}
       />
 
       {/* Cool rim fill — no shadows needed */}
@@ -94,7 +94,7 @@ export default function Lighting() {
         blur={2.5}
         far={4}
         color="#18181B"
-        frames={1}            {/* FIX 2b — render shadow map once, reuse forever */}
+        frames={1}
       />
     </>
   )
